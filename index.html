@@ -1369,7 +1369,7 @@ async function loadStock2() {
   // Auto-apply GS image URLs via proxy
   stockData.forEach((item, i) => {
     if(!item.gsImgUrl) return;
-    const url = item.gsImgUrl;
+    let url = item.gsImgUrl;
     // Convert Drive share URL to thumbnail URL (no proxy needed)
     const driveMatch = url.match(/\/d\/([a-zA-Z0-9_-]+)/);
     if(driveMatch) {
