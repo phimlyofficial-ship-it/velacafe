@@ -968,9 +968,8 @@ async function loadAllData() {
     document.getElementById('updateTime').textContent = 'ອັບເດດ: ' + new Date().toLocaleTimeString('lo-LA');
     refreshAllUI();
   } catch(e) {
-    console.error(e);
-    document.getElementById('setupPanel').style.display = '';
-    alert('ໂຫລດບໍ່ໄດ້: ' + e.message);
+    console.error('Load error:', e.message);
+    alert('ໂຫລດບໍ່ໄດ້: ' + e.message + '\n\nກວດສອບ Apps Script URL ໃນ ⚙️ ຕັ້ງຄ່າ');
   }
   btn.disabled = false; btn.textContent = '⚡ ເຊື່ອມ & ບັນທຶກ';
 }
@@ -1021,21 +1020,18 @@ function filterExpenses(cat) {
 // ===== AUTO-LOAD ON STARTUP =====
 (function autoLoad(){
   try {
-    // Embedded URL — no manual connection needed
     const EMBEDDED_URL = 'https://script.google.com/macros/s/AKfycbyNgrTM9MGimNpF5jGc14JqiNh3aY4sckl3xXc4PSnjpL-XwoqxV0qInyL2yHSr1Odz/exec';
-    let url = EMBEDDED_URL;
     
-    // Override with saved URL if exists (allows admin to change)
-    const saved = localStorage.getItem(GS_URL_KEY);
-    if(saved && saved.includes('script.google.com')) url = saved;
-    
-    // Also support Apps Script self-hosting
+    // Use Apps Script URL when served from Apps Script
     if(window.location.href.includes('script.google.com/macros')) {
-      url = window.location.href.split('?')[0];
+      appsScriptUrl = window.location.href.split('?')[0];
+    } else {
+      // For GitHub Pages or local: use embedded URL
+      appsScriptUrl = EMBEDDED_URL;
     }
-
-    appsScriptUrl = url;
-    try { document.getElementById('appsScriptUrl').value = url; } catch(e) {}
+    
+    try { document.getElementById('appsScriptUrl').value = appsScriptUrl; } catch(e) {}
+    localStorage.setItem(GS_URL_KEY, appsScriptUrl);
     document.getElementById('setupPanel').style.display = 'none';
     setTimeout(() => { loadAllData(); }, 600);
   } catch(e) { console.warn(e); }
