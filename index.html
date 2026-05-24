@@ -306,6 +306,7 @@ tr:hover td{background:rgba(255,255,255,.02);}
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
       ເປີດ Google Sheet
     </a>
+    <button onclick="toggleSetup()" class="gs-btn" title="ຕັ້ງຄ່າ URL" style="padding:7px 10px;">⚙️</button>
     <!-- User Badge -->
     <div class="user-badge" id="userBadge" onclick="toggleUserMenu(event)">
       <div class="user-avatar" id="topUserAvatar"></div>
@@ -350,7 +351,7 @@ tr:hover td{background:rgba(255,255,255,.02);}
 
 <main>
   <!-- SETUP -->
-  <div class="setup-panel" id="setupPanel" style="padding:1rem 1.5rem;">
+  <div class="setup-panel" id="setupPanel" style="padding:1rem 1.5rem;display:none;">
     <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
       <div style="flex:1;min-width:200px;">
         <div style="font-size:11px;color:var(--text2);margin-bottom:4px;">🔗 Apps Script URL <span id="urlStatus" style="color:var(--teal)"></span></div>
@@ -1020,19 +1021,23 @@ function filterExpenses(cat) {
 // ===== AUTO-LOAD ON STARTUP =====
 (function autoLoad(){
   try {
-    let url = '';
+    // Embedded URL — no manual connection needed
+    const EMBEDDED_URL = 'https://script.google.com/macros/s/AKfycbxNryRkuD93YiCL9B6T3-mdJzbO-JlM2j8tZg-ibWEnR1hNKTvRKHSe68m7_C5483Zv/exec';
+    let url = EMBEDDED_URL;
+    
+    // Override with saved URL if exists (allows admin to change)
+    const saved = localStorage.getItem(GS_URL_KEY);
+    if(saved && saved.includes('script.google.com')) url = saved;
+    
+    // Also support Apps Script self-hosting
     if(window.location.href.includes('script.google.com/macros')) {
       url = window.location.href.split('?')[0];
-    } else {
-      url = localStorage.getItem(GS_URL_KEY) || '';
     }
-    if(url) {
-      appsScriptUrl = url;
-      document.getElementById('appsScriptUrl').value = url;
-      document.getElementById('urlStatus').textContent = '✅ ເຊື່ອມຢູ່';
-      document.getElementById('setupPanel').style.display = 'none';
-      setTimeout(() => { loadAllData(); }, 800);
-    }
+
+    appsScriptUrl = url;
+    try { document.getElementById('appsScriptUrl').value = url; } catch(e) {}
+    document.getElementById('setupPanel').style.display = 'none';
+    setTimeout(() => { loadAllData(); }, 600);
   } catch(e) { console.warn(e); }
 })();
 
