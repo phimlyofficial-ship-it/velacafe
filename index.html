@@ -1022,7 +1022,7 @@ function filterExpenses(cat) {
 (function autoLoad(){
   try {
     // Embedded URL — no manual connection needed
-    const EMBEDDED_URL = 'https://script.google.com/macros/s/AKfycbxNryRkuD93YiCL9B6T3-mdJzbO-JlM2j8tZg-ibWEnR1hNKTvRKHSe68m7_C5483Zv/exec';
+    const EMBEDDED_URL = 'https://script.google.com/macros/s/AKfycbyNgrTM9MGimNpF5jGc14JqiNh3aY4sckl3xXc4PSnjpL-XwoqxV0qInyL2yHSr1Odz/exec';
     let url = EMBEDDED_URL;
     
     // Override with saved URL if exists (allows admin to change)
@@ -1296,27 +1296,8 @@ function saveProdUrl() {
   let finalUrl = url;
   const driveMatch = url ? url.match(/\/d\/([a-zA-Z0-9_-]+)/) : null;
   if(driveMatch) {
-    // Use Apps Script proxy to bypass CORS
-    const fileId = driveMatch[1];
-    const baseUrl = appsScriptUrl || window.location.href.split('?')[0];
-    finalUrl = baseUrl + '?imgid=' + fileId;
-    // Fetch base64 from proxy then store
-    fetch(finalUrl).then(r=>r.json()).then(d=>{
-      if(d.img){
-        if(!stockImgs[currentProdKey]) stockImgs[currentProdKey]={};
-        stockImgs[currentProdKey].gsUrl = d.img;
-        stockImgs[currentProdKey].dataUrl = null;
-        saveStockImgs();
-        document.getElementById('prodImgPreview').src = d.img;
-        document.getElementById('prodCurrentImg').style.display='block';
-        renderStockGrid();
-        alert('✅ ໂຫລດຮູບສຳເລັດ!');
-      } else {
-        alert('ໂຫລດຮູບບໍ່ໄດ້: ' + (d.error||'unknown'));
-      }
-    }).catch(err=>alert('Error: '+err));
-    btn.disabled=false; btn.textContent='ບັນທຶກ';
-    return;
+    // Convert to thumbnail URL — no proxy needed
+    finalUrl = 'https://drive.google.com/thumbnail?id=' + driveMatch[1] + '&sz=w500';
   }
   if(!stockImgs[currentProdKey]) stockImgs[currentProdKey] = {};
   stockImgs[currentProdKey].gsUrl = finalUrl;
@@ -1341,40 +1322,68 @@ function deleteProdImg() {
 async function loadStock2() {
   const rows = await fetchSheet('ສະຕັອກ');
   if(rows.length < 2) return;
+
   const header = rows[0].map(h => String(h||'').trim());
-  const imgColIdx = header.findIndex(h => h.includes('ຮູບ') || h.toLowerCase().includes('image') || h.toLowerCase().includes('url'));
-  const data = rows.slice(1).filter(r => r[0] && r[1]);
+  console.log('Stock headers:', header);
+
+  // Find columns by header name
+  const ci = {
+    num:  header.findIndex(h => h.includes('ລຳດັບ') || h.includes('ລາດັບ') || h === 'A' || h === '#'),
+    name: header.findIndex(h => h.includes('ລາຍການ') || h.includes('ລາຍຍການ') || h.includes('ວາຍຍານ') || h.includes('ວາຍການ')),
+    cat:  header.findIndex(h => h.includes('ປະເພດ') || h.includes('ໝວດ')),
+    price:header.findIndex(h => h.includes('ລາຄາ')),
+    cur:  header.findIndex(h => h.includes('ສະກຸນ')),
+    qty:  header.findIndex(h => h.includes('ຈຳນວນ')),
+    unit: header.findIndex(h => h.includes('ໜ່ວຍ') || h.includes('ຫົວ') || h.includes('ຫນ່ວຍ')),
+    size: header.findIndex(h => h.includes('ຂະໜາດ') || h.includes('ຂະຫນາດ')),
+    imgUrl: header.findIndex(h => h.includes('ຮູບ URL') || h.includes('ຮູບURL') || (h.includes('ຮູບ') && h.includes('URL'))),
+  };
+
+  // fallback by position if header not found
+  if(ci.num   < 0) ci.num   = 0;
+  if(ci.name  < 0) ci.name  = 1;
+  if(ci.cat   < 0) ci.cat   = 3;
+  if(ci.price < 0) ci.price = 4;
+  if(ci.cur   < 0) ci.cur   = 5;
+  if(ci.qty   < 0) ci.qty   = 6;
+  if(ci.unit  < 0) ci.unit  = 7;
+  if(ci.size  < 0) ci.size  = 8;
+  // ຮູບ URL is last column if not found
+  if(ci.imgUrl < 0) {
+    // try finding any column with 'URL' or 'url'
+    ci.imgUrl = header.findIndex(h => h.toUpperCase().includes('URL'));
+  }
+  console.log('Column indexes:', ci);
+
+  const data = rows.slice(1).filter(r => r[1] && String(r[1]).trim());
   stockData = data.map((r, i) => ({
-    name: r[1]||'—', cat: r[3]||r[2]||'', price: r[4]||'—', currency: r[5]||'',
-    qty: r[6]||'0', unit: r[7]||'', size: r[8]||'',
-    gsImgUrl: imgColIdx >= 0 ? (r[imgColIdx]||'') : ''
+    name:     String(r[1]||'—').trim(),   // B = ລາຍການ
+    cat:      String(r[3]||'').trim(),    // D = ປະເພດ
+    price:    r[4]||'—',                  // E = ລາຄາ
+    currency: String(r[5]||'').trim(),    // F = ສະກຸນ
+    qty:      r[6]||'0',                  // G = ຈຳນວນ
+    unit:     String(r[7]||'').trim(),    // H = ໜ່ວຍ
+    size:     String(r[8]||'').trim(),    // I = ຂະໜາດ
+    gsImgUrl: String(r[9]||'').trim()     // J = ຮູບ URL ✅
   }));
-  // auto-apply GS image URLs
+
+  // Auto-apply GS image URLs via proxy
   stockData.forEach((item, i) => {
-    if(item.gsImgUrl) {
-      let url = item.gsImgUrl;
-      const driveMatch = url ? url.match(/\/d\/([a-zA-Z0-9_-]+)/) : null;
-      if(driveMatch) {
-        const fileId = driveMatch[1];
-        const baseUrl2 = appsScriptUrl || window.location.href.split('?')[0];
-        const proxyUrl = baseUrl2 + '?imgid=' + fileId;
-        (function(key, pUrl){
-          fetch(pUrl).then(r=>r.json()).then(d=>{
-            if(d.img){
-              if(!stockImgs[key]) stockImgs[key]={};
-              stockImgs[key].gsUrl = d.img;
-              saveStockImgs();
-              renderStockGrid();
-            }
-          }).catch(()=>{});
-        })('stock-'+i, proxyUrl);
-        return; // use return instead of continue inside forEach
-      }
+    if(!item.gsImgUrl) return;
+    const url = item.gsImgUrl;
+    // Convert Drive share URL to thumbnail URL (no proxy needed)
+    const driveMatch = url.match(/\/d\/([a-zA-Z0-9_-]+)/);
+    if(driveMatch) {
+      const fileId = driveMatch[1];
+      url = 'https://drive.google.com/thumbnail?id=' + fileId + '&sz=w500';
+    }
+    if(url.startsWith('http')) {
+      // Direct URL (not Drive)
       if(!stockImgs['stock-'+i]) stockImgs['stock-'+i] = {};
-      // only set gsUrl; don't overwrite manual dataUrl upload
       stockImgs['stock-'+i].gsUrl = url;
     }
   });
+
   saveStockImgs();
   document.getElementById('stockCount').textContent = data.length + ' ລາຍການ';
   renderStockGrid();
