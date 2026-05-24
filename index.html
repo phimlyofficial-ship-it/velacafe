@@ -1023,17 +1023,20 @@ function filterExpenses(cat) {
     const EMBEDDED_URL = 'https://script.google.com/macros/s/AKfycbyNgrTM9MGimNpF5jGc14JqiNh3aY4sckl3xXc4PSnjpL-XwoqxV0qInyL2yHSr1Odz/exec';
     
     // Use Apps Script URL when served from Apps Script
-    if(window.location.href.includes('script.google.com/macros')) {
-      appsScriptUrl = window.location.href.split('?')[0];
-    } else {
-      // For GitHub Pages or local: use embedded URL
+    try {
+      if(window.location.href.includes('script.google.com/macros')) {
+        appsScriptUrl = window.location.href.split('?')[0];
+      } else {
+        appsScriptUrl = EMBEDDED_URL;
+      }
+    } catch(ex) {
       appsScriptUrl = EMBEDDED_URL;
     }
-    
+
     try { document.getElementById('appsScriptUrl').value = appsScriptUrl; } catch(e) {}
-    localStorage.setItem(GS_URL_KEY, appsScriptUrl);
-    document.getElementById('setupPanel').style.display = 'none';
-    setTimeout(() => { loadAllData(); }, 600);
+    try { localStorage.setItem(GS_URL_KEY, appsScriptUrl); } catch(e) {}
+    try { document.getElementById('setupPanel').style.display = 'none'; } catch(e) {}
+    setTimeout(function() { loadAllData(); }, 800);
   } catch(e) { console.warn(e); }
 })();
 
